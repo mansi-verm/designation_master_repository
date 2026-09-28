@@ -1,0 +1,27 @@
+# Frontend
+node_modules/
+dist/
+.env
+.env.*
+
+# Java / Gradle
+.gradle/
+build/
+target/
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploaded files
+**/uploads/
