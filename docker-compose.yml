@@ -1,0 +1,226 @@
+services:
+
+  mysql:
+    image: mysql:8.4
+    container_name: designation-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+    ports:
+      - "3306:3306"
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-uroot",
+          "-p${MYSQL_ROOT_PASSWORD}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+
+  redis:
+    image: redis:7-alpine
+    container_name: designation-redis
+    restart: unless-stopped
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+
+    container_name: config-server
+    restart: unless-stopped
+
+    ports:
+      - "8888:8888"
+
+    volumes:
+      - ./config-server/config-repo:/config-repo:ro
+
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+
+    container_name: eureka-server
+    restart: unless-stopped
+
+    ports:
+      - "8761:8761"
+
+    environment:
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+
+    depends_on:
+      config-server:
+        condition: service_started
+
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+
+    container_name: auth-service
+    restart: unless-stopped
+
+    ports:
+      - "8082:8082"
+
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+      config-server:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+
+  master-service:
+    build:
+      context: .
+      dockerfile: ./master-service/Dockerfile
+
+    container_name: master-service
+    restart: unless-stopped
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+      config-server:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+
+  designation-master:
+    build:
+      context: .
+      dockerfile: ./designation-master/Dockerfile
+
+    container_name: designation-master
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+      config-server:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+
+    container_name: api-gateway
+    restart: unless-stopped
+
+    ports:
+      - "8084:8084"
+
+    environment:
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      config-server:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+      auth-service:
+        condition: service_started
+
+      master-service:
+        condition: service_started
+
+      designation-master:
+        condition: service_started
+
+
+volumes:
+  mysql-data:
+  redis-data:

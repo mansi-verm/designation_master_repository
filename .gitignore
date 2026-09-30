@@ -25,3 +25,11 @@ Thumbs.db
 
 # Uploaded files
 **/uploads/
+
+# Docker environment variables
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml

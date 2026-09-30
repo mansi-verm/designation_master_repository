@@ -1,32 +1,31 @@
+
 spring:
   application:
     name: common-service
 
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+  datasource:
+    url: jdbc:mysql://mysql:3306/common_db?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
     properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
 
 server:
-  port: 8085
+  port: 8083
 
 designation-master:
-  url: http://localhost:8080
-
-notification:
-  recipient: ${MAIL_USERNAME:}
+  url: http://designation-master:8080
 
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://eureka-server:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
