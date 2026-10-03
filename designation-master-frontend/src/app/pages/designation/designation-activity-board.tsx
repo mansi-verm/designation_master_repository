@@ -300,6 +300,7 @@ const DesignationActivityBoard = () => {
     setAppliedSearchQuery("");
     setSortBy("name");
     setSortDirection("asc");
+    void loadData(resetFilters);
   };
 
   const handleAdd = () => {
