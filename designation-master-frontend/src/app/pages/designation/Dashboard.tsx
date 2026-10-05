@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import {
@@ -429,7 +430,16 @@ const Dashboard = () => {
     levels: number[];
     grades: string[];
     statuses: boolean[];
-  }>({ departments: [], levels: [], grades: [], statuses: [] });
+    skills: { id: number; name: string }[];
+    branches: { id: number; name: string }[];
+  }>({
+    departments: [],
+    levels: [],
+    grades: [],
+    statuses: [],
+    skills: [],
+    branches: [],
+  });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -473,6 +483,8 @@ const Dashboard = () => {
           levels: Array.isArray(result.levels) ? result.levels : [],
           grades: Array.isArray(result.grades) ? result.grades.map(String) : [],
           statuses: Array.isArray(result.statuses) ? result.statuses : [],
+          skills: Array.isArray(result.skills) ? result.skills : [],
+          branches: Array.isArray(result.branches) ? result.branches : [],
         });
       } catch (err) {
         console.error("Dropdown error:", err);
@@ -773,6 +785,27 @@ const Dashboard = () => {
             />
           );
         }
+        if ((key === "skills" || key === "branchIds") && value) {
+          const list = key === "skills" ? dropdowns.skills : dropdowns.branches;
+          const ids: unknown[] = Array.isArray(value)
+            ? value
+            : String(value)
+                .split(",")
+                .map((v) => v.trim())
+                .filter(Boolean);
+          const names = ids.map(
+            (id) =>
+              list.find((item) => String(item.id) === String(id))?.name ??
+              String(id),
+          );
+          return (
+            <TableText
+              value={names.length ? names.join(", ") : "-"}
+              maxWidth={220}
+              align="left"
+            />
+          );
+        }
         return (
           <TableText
             value={getDisplayValue(value)}
@@ -783,7 +816,13 @@ const Dashboard = () => {
       },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailRows, dropdowns.departments, detailHeaders]);
+  }, [
+    detailRows,
+    dropdowns.departments,
+    dropdowns.skills,
+    dropdowns.branches,
+    detailHeaders,
+  ]);
 
   // ----- React chart renderers -----
   const renderReactGauge = () => {

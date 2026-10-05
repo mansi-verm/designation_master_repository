@@ -1,3 +1,5 @@
+
+
 import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import {
@@ -120,6 +122,7 @@ const AddForm = ({
   branchOptions,
 }: AddFormProps) => {
   const [skillsToAddBuffer, setSkillsToAddBuffer] = useState<Option[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const {
     control,
@@ -144,6 +147,7 @@ const AddForm = ({
   useEffect(() => {
     if (!open) return;
     setSkillsToAddBuffer([]);
+    setSaving(false);
     reset({ designations: [createEmptyDesignation()] });
   }, [open, reset]);
 
@@ -196,10 +200,16 @@ const AddForm = ({
 
   const handleFormSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving) return;
     const isValid = await trigger();
     if (!isValid) return;
-    const currentData = getValues();
-    await submitForm(currentData);
+    setSaving(true);
+    try {
+      const currentData = getValues();
+      await submitForm(currentData);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getAvailableSkills = (currentSkills: SkillItem[]) => {
@@ -546,14 +556,16 @@ const AddForm = ({
                               mb: 1.5,
                             }}
                           >
-                            <MultiAutocomplete
-                              label="Select Skill"
-                              options={availableSkills}
-                              value={skillsToAddBuffer}
-                              onChange={(values) =>
-                                setSkillsToAddBuffer(values)
-                              }
-                            />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <MultiAutocomplete
+                                label="Select Skill"
+                                options={availableSkills}
+                                value={skillsToAddBuffer}
+                                onChange={(values) =>
+                                  setSkillsToAddBuffer(values)
+                                }
+                              />
+                            </Box>
 
                             <Button
                               type="button"
@@ -749,7 +761,7 @@ const AddForm = ({
           <Button
             type="submit"
             variant="outlined"
-            disabled={isSubmitting}
+            disabled={isSubmitting || saving}
             sx={{
               borderColor: "#2e7d32",
               color: "#2e7d32",
@@ -759,14 +771,14 @@ const AddForm = ({
               },
             }}
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </Button>
 
           <Button
             type="button"
             variant="outlined"
             onClick={handleReset}
-            disabled={isSubmitting}
+            disabled={isSubmitting || saving}
             sx={{
               borderColor: "#ed6c02",
               color: "#ed6c02",
@@ -782,7 +794,7 @@ const AddForm = ({
           <Button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isSubmitting || saving}
             sx={{
               borderColor: "#d32f2f",
               color: "#d32f2f",

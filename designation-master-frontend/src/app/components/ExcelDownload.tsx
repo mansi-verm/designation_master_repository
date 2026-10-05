@@ -52,9 +52,6 @@ const ExcelDownload = ({ showMessage, type = "excel" }: ExcelDownloadProps) => {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      // const fileName = template
-      //   ? "designation_template.xlsx"
-      //   : "designation.xlsx";
       const fileName = template
         ? `designation_template_${getTimestamp()}.xlsx`
         : `designation_${getTimestamp()}.xlsx`;

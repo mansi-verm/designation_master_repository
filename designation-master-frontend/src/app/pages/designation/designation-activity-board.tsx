@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import Dashboard from "./Dashboard";
 
@@ -87,6 +88,21 @@ const EMPTY_DROPDOWNS: DropdownData = {
   branches: [],
 };
 
+// "05-10-2026 13:47:06" -> "05-10-2026 01:47:06 PM"
+const formatDateTime12h = (value: unknown): string => {
+  if (!value) return "NA";
+  const text = String(value).trim();
+  const m = text.match(
+    /^(\d{2}-\d{2}-\d{4})[\sT]+(\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (!m) return text;
+  const [, datePart, hh, mm, ss = "00"] = m;
+  const hour24 = Number(hh);
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${datePart} ${String(hour12).padStart(2, "0")}:${mm}:${ss} ${suffix}`;
+};
+
 const toOptions = (values: unknown[]): Option[] =>
   values
     .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
@@ -132,6 +148,8 @@ const DesignationActivityBoard = () => {
 
   const [sortBy, setSortBy] = useState<"name" | "code" | "level">("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // false = default order (newest record on top)
+  const [userSorted, setUserSorted] = useState(false);
 
   // History
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -281,7 +299,7 @@ const DesignationActivityBoard = () => {
       }
     };
     void loadTileCounts();
-  }, [mode, filters.fromDate, filters.toDate]);
+  }, [mode, filters.fromDate, filters.toDate, data]);
 
   // ---------- Handlers ----------
   const handleReset = () => {
@@ -300,6 +318,7 @@ const DesignationActivityBoard = () => {
     setAppliedSearchQuery("");
     setSortBy("name");
     setSortDirection("asc");
+    setUserSorted(false);
     void loadData(resetFilters);
   };
 
@@ -542,7 +561,12 @@ const DesignationActivityBoard = () => {
     }
 
     const skills: Option[] = Array.isArray(row.skills)
-      ? row.skills.map((s) => ({ label: String(s), value: String(s) }))
+      ? row.skills.map((s) => ({
+          label:
+            dropdowns.skills.find((sk) => String(sk.id) === String(s))?.name ??
+            String(s),
+          value: String(s),
+        }))
       : [];
 
     const branchIds: string[] = Array.isArray(row.branchIds)
@@ -691,6 +715,7 @@ const DesignationActivityBoard = () => {
   });
 
   const compareValues = (a: Designation, b: Designation) => {
+    if (!userSorted) return Number(b.id) - Number(a.id);
     if (sortBy === "level") {
       const aL = Number(a.designationLevel ?? 0);
       const bL = Number(b.designationLevel ?? 0);
@@ -749,6 +774,20 @@ const DesignationActivityBoard = () => {
     )
     .map((i) => ({ label: i.designationName, value: String(i.id) }));
 
+  const skillNameMap = new Map(
+    dropdowns.skills.map((s) => [String(s.id), s.name]),
+  );
+  const branchNameMap = new Map(
+    dropdowns.branches.map((b) => [String(b.id), b.name]),
+  );
+
+  const departmentNameMap = new Map(
+    dropdowns.departments.map((d) => [String(d.id), d.name]),
+  );
+  const designationNameMap = new Map(
+    data.map((d) => [String(d.id), d.designationName]),
+  );
+
   // ---------- History helpers ----------
   const historyFields = [
     { key: "designationCode", label: "Designation Code" },
@@ -790,10 +829,27 @@ const DesignationActivityBoard = () => {
     return `${d}-${m}-${y}`;
   };
 
-  const formatHistoryValue = (value: unknown): string => {
+  const formatHistoryValue = (
+    value: unknown,
+    key?: HistoryFieldKey,
+  ): string => {
     if (value === null || value === undefined || value === "") return "NA";
     if (typeof value === "boolean") return value ? "Active" : "Inactive";
-    if (Array.isArray(value)) return value.length ? value.join(", ") : "NA";
+    if (Array.isArray(value)) {
+      const nameMap =
+        key === "skills"
+          ? skillNameMap
+          : key === "branchIds"
+            ? branchNameMap
+            : null;
+      return value.length
+        ? value.map((v) => nameMap?.get(String(v)) ?? String(v)).join(", ")
+        : "NA";
+    }
+    if (key === "departmentId")
+      return departmentNameMap.get(String(value)) ?? String(value);
+    if (key === "parentDesignationId")
+      return designationNameMap.get(String(value)) ?? String(value);
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   };
@@ -887,16 +943,16 @@ const DesignationActivityBoard = () => {
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                 }}
-                title={formatHistoryValue(currentValue)}
+                title={formatHistoryValue(currentValue, field.key)}
               >
-                {formatHistoryValue(currentValue) || "—"}
+                {formatHistoryValue(currentValue, field.key) || "—"}
               </Typography>
             );
           }
 
           return (
             <TableText
-              value={formatHistoryValue(currentValue) || "—"}
+              value={formatHistoryValue(currentValue, field.key) || "—"}
               align="center"
               maxWidth={170}
             />
@@ -1071,7 +1127,13 @@ const DesignationActivityBoard = () => {
         const skills = cell.getValue<string[]>() ?? [];
         return (
           <TableText
-            value={skills.length ? skills.join(", ") : "NA"}
+            value={
+              skills.length
+                ? skills
+                    .map((id) => skillNameMap.get(String(id)) ?? String(id))
+                    .join(", ")
+                : "NA"
+            }
             maxWidth={195}
             align="left"
           />
@@ -1087,7 +1149,13 @@ const DesignationActivityBoard = () => {
         const branches = cell.getValue<string[]>() ?? [];
         return (
           <TableText
-            value={branches.length ? branches.join(", ") : "NA"}
+            value={
+              branches.length
+                ? branches
+                    .map((id) => branchNameMap.get(String(id)) ?? String(id))
+                    .join(", ")
+                : "NA"
+            }
             maxWidth={155}
             align="left"
           />
@@ -1191,7 +1259,10 @@ const DesignationActivityBoard = () => {
       size: 170,
       minSize: 170,
       Cell: ({ cell }) => (
-        <TableText value={cell.getValue<string>() ?? "NA"} align="center" />
+        <TableText
+          value={formatDateTime12h(cell.getValue<string>())}
+          align="center"
+        />
       ),
     },
     {
@@ -1212,7 +1283,10 @@ const DesignationActivityBoard = () => {
       size: 170,
       minSize: 170,
       Cell: ({ cell }) => (
-        <TableText value={cell.getValue<string>() ?? "NA"} align="center" />
+        <TableText
+          value={formatDateTime12h(cell.getValue<string>())}
+          align="center"
+        />
       ),
     },
   ];
@@ -1381,8 +1455,14 @@ const DesignationActivityBoard = () => {
                 }}
                 sortBy={sortBy}
                 sortDirection={sortDirection}
-                onSortByChange={setSortBy}
-                onSortDirectionChange={setSortDirection}
+                onSortByChange={(value) => {
+                  setUserSorted(true);
+                  setSortBy(value);
+                }}
+                onSortDirectionChange={(value) => {
+                  setUserSorted(true);
+                  setSortDirection(value);
+                }}
                 onSearch={() => void loadData(filters)}
                 onReset={handleReset}
               />
